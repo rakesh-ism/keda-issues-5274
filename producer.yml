@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-producer
+  namespace: default
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: demo-producer
+  template:
+    metadata:
+      labels:
+        app: demo-producer
+    spec:
+      containers:
+        - image: rust-backend-image:latest
+          name: demo-producer
+          resources:
+            requests:
+              memory: 10Mi
+              cpu: 10m
+            limits:
+              memory: 100Mi
+              cpu: 100m
+          env:
+            - name: BROKERS
+              value: my-cluster-kafka-bootstrap.kafka.svc:9092
+            - name: TOPIC_LIST
+              value: 'errors,warnings'
+            - name: POD_TYPE
+              value: P
+          imagePullPolicy: Never

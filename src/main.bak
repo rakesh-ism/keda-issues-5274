@@ -1,0 +1,110 @@
+use kafka::consumer::{Consumer, FetchOffset};
+use kafka::error::Error as KafkaError;
+use kafka::producer::{Producer, Record, RequiredAcks};
+use std::env;
+use std::str;
+use std::time::Duration;
+
+struct Config {
+    host: String,
+    topics: Vec<String>,
+    pod_type: String,
+}
+
+impl Config {
+    fn prepare() -> Result<Config, &'static str> {
+        let host = env::var("HOST").map_or("localhost:9092".to_string(), |x| x);
+        let topic_list = env::var("TOPIC_LIST").map_or("topic1".to_string(), |x| x);
+        let topics = topic_list.split(',').map(|x| x.to_string()).collect();
+        let pod_type = env::var("POD_TYPE").unwrap();
+        Ok(Config {
+            host,
+            topics,
+            pod_type,
+        })
+    }
+}
+
+fn consume(config: Config) {
+    println!("{:?}, {:?}", config.host, config.topics);
+    let hosts = vec![config.host];
+    let mut consumer = Consumer::from_hosts(hosts)
+        .with_group("test".to_string())
+        .with_topic("errors".to_string())
+//        .with_topic("warnings".to_string())
+        .with_fallback_offset(FetchOffset::Earliest)
+        .create()
+        .unwrap();
+
+    loop {
+        for ms in consumer.poll().unwrap().iter() {
+            for m in ms.messages() {
+                println!("{:?}", str::from_utf8(m.value).unwrap());
+            }
+            consumer.consume_messageset(ms).unwrap();
+        }
+        consumer.commit_consumed().unwrap();
+    }
+}
+fn main() {
+    let config = Config::prepare().unwrap();
+    println!("{:?}, {:?}", config.host, config.pod_type);
+    if "P".eq_ignore_ascii_case(&config.pod_type) {
+        consume(config);
+    } else {
+        produce(config);
+    }
+}
+
+/// This program demonstrates sending single message through a
+/// `Producer`.  This is a convenient higher-level client that will
+/// fit most use cases.
+fn produce(config: Config) {
+    // tracing_subscriber::fmt::init();
+    println!("{:?}, {:?}", config.host, config.pod_type);
+    let broker = config.host;
+    let topic = "errors";
+
+    let data = "hello, kafka".as_bytes();
+
+    if let Err(e) = produce_message(data, topic, vec![broker.to_owned()]) {
+        println!("Failed producing messages: {}", e);
+    }
+}
+
+fn produce_message(data: &[u8], topic: &str, brokers: Vec<String>) -> Result<(), KafkaError> {
+    println!("About to publish a message at {:?} to: {}", brokers, topic);
+
+    // ~ create a producer. this is a relatively costly operation, so
+    // you'll do this typically once in your application and re-use
+    // the instance many times.
+    let mut producer = Producer::from_hosts(brokers)
+        // ~ give the brokers one second time to ack the message
+        .with_ack_timeout(Duration::from_secs(1))
+        // ~ require only one broker to ack the message
+        .with_required_acks(RequiredAcks::One)
+        // ~ build the producer with the above settings
+        .create()?;
+
+    // ~ now send a single message.  this is a synchronous/blocking
+    // operation.
+
+    // ~ we're sending 'data' as a 'value'. there will be no key
+    // associated with the sent message.
+
+    // ~ we leave the partition "unspecified" - this is a negative
+    // partition - which causes the producer to find out one on its
+    // own using its underlying partitioner.
+    producer.send(&Record {
+        topic,
+        partition: -1,
+        key: (),
+        value: data,
+    })?;
+
+    // ~ we can achieve exactly the same as above in a shorter way with
+    // the following call
+    producer.send(&Record::from_value(topic, data))?;
+
+    Ok(())
+}
