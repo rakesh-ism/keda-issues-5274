@@ -33,4 +33,6 @@ spec:
               value: my-cluster-kafka-bootstrap.kafka.svc:9092
             - name: POD_TYPE
               value: P
-          imagePullPolicy: Never
+            - name: WAIT_SEC
+              value: "600"
+#          imagePullPolicy: Never

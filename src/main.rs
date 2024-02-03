@@ -7,22 +7,24 @@ use consumer::consume_and_print;
 use log::info;
 use producer::produce;
 use rdkafka::util::get_rdkafka_version;
-use tokio::join;
 use std::env;
+use tokio::join;
 
-#[allow(dead_code)]
 struct Config {
     brokers: String,
     pod_type: String,
+    wait_sec: u32,
 }
 
 impl Config {
     fn prepare() -> Result<Config, &'static str> {
         let brokers = env::var("BROKERS").map_or("localhost:9092".to_string(), |x| x);
         let pod_type = env::var("POD_TYPE").unwrap();
+        let wait_sec: u32 = env::var("WAIT_SEC").unwrap().parse().unwrap();
         Ok(Config {
             brokers,
             pod_type,
+            wait_sec,
         })
     }
 }
@@ -34,15 +36,14 @@ async fn main() {
     info!("rd_kafka_version: 0x{:08x}, {}", version_n, version_s);
 
     let config = Config::prepare().unwrap();
-    if config.pod_type == "C"{
-        consume_loop(&config.brokers, "group1").await;
-    }else if config.pod_type == "P"{
+    if config.pod_type == "C" {
+        consume_loop(&config.brokers, "group1", config.wait_sec).await;
+    } else if config.pod_type == "P" {
         produce_loop(&config.brokers).await;
-    }
-    else{
+    } else {
         let produce = produce_loop(&config.brokers);
-        let consume = consume_loop(&config.brokers, "group1");
-        join!(produce, consume);    
+        let consume = consume_loop(&config.brokers, "group1", config.wait_sec);
+        join!(produce, consume);
     }
 }
 
@@ -52,10 +53,12 @@ async fn produce_loop(brokers: &str) {
         produce(brokers, "warnings").await;
     }
 }
-async fn consume_loop(brokers: &str, group_id: &str) {
+async fn consume_loop(brokers: &str, group_id: &str, wait_time: u32) {
     let topics: [&str; 2] = ["errors", "warnings"];
     println!("wating for one minute in consume_loop");
-    tokio::time::sleep(std::time::Duration::from_secs(600)).await; //wait for one minute
+    if wait_time > 0 {
+        tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+    }
     println!("One minute over in consume_loop");
     consume_and_print(brokers, group_id, &topics).await;
 }
