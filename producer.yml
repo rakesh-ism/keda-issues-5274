@@ -19,7 +19,7 @@ spec:
         app: demo-producer
     spec:
       containers:
-        - image: rust-backend-image:latest
+        - image: ghcr.io/rakesh-ism/keda-issues-5274:main
           name: demo-producer
           resources:
             requests:
@@ -31,8 +31,6 @@ spec:
           env:
             - name: BROKERS
               value: my-cluster-kafka-bootstrap.kafka.svc:9092
-            - name: TOPIC_LIST
-              value: 'errors,warnings'
             - name: POD_TYPE
               value: P
           imagePullPolicy: Never

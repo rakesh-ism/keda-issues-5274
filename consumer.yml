@@ -19,7 +19,7 @@ spec:
         app: demo-consumer
     spec:
       containers:
-        - image: rust-backend-image:latest
+        - image: ghcr.io/rakesh-ism/keda-issues-5274:main
           name: demo-consumer
           resources:
             requests:
@@ -29,10 +29,8 @@ spec:
               memory: 100Mi
               cpu: 100m
           env:
-            - name: HOST
+            - name: BROKERS
               value: my-cluster-kafka-bootstrap.kafka.svc:9092
-            - name: TOPIC_LIST
-              value: 'error,warning'
             - name: POD_TYPE
               value: C
           imagePullPolicy: Never
